@@ -14,24 +14,36 @@ BEGIN {
     current_block = "";  # Keep track of the current message or contract
     last_comment = "";   # Store the last seen documentation comment
     accumulating_comments = 0;  # Flag to indicate if we are currently accumulating comments
-    in_sub_block = 0; # Flag to indicate if we are currently in a sub-block
+    sub_block_depth = 0; # Current depth of sub-block
+    fields_section = 0;  # Flag to indicate if we are currently in a fields section
     github_path = "https://github.com/microcosm-labs/tact-tools";
     branch = "main";
     prev_nr = 0;  # Store the line number of all previous files
 }
 
-# Add a sub-block flag
-/\{/ {
-    if (current_block != "") {
-        # print "Entering sub-block from block: " current_block " on line " NR - prev_nr;
-        in_sub_block = 1;  # Set sub-block flag
+
+# Function to print markdown header
+function print_markdown_header(file) {
+    print "# Documentation for [" file"]("github_path"/blob/"branch last_file_pathname")\n";
+}
+
+# Process each file
+{
+    if (FILENAME != last_file) {
+        if (last_file != "") {
+            print "\n"; # Print a newline between files
+        }
+        last_file = FILENAME;
+        last_file_pathname = gensub(/^./, "", "g", FILENAME);
+        print_markdown_header(gensub(/^.\//, "", "g", FILENAME));
+        prev_nr = NR - 1;  # Store the line number of the last file
     }
 }
 
 # Capture documentation comments
 /^\s*\/\/\/\s/ {
     parsed_comment0 = gensub(/\s*\/\/\/\s/, "", "g", $0);  # Clean up the comment
-    parsed_comment = gensub(/^#/, "###", "g", parsed_comment0);  # Clean up the comment
+    parsed_comment = gensub(/^#/, "####", "g", parsed_comment0);  # Clean up the comment
     if (accumulating_comments) {
         last_comment = last_comment "\n" parsed_comment;  # Accumulate multi-line comments
     } else {
@@ -40,15 +52,54 @@ BEGIN {
     }
 }
 
-# Detect entering a message, contract or struct and store its name
-/^\s*(message(\(.*\))?|contract|struct)\s+([a-zA-Z0-9_]+)/ {
+# For inner comments we print them out directly
+/^\s*\/\/!\s/ {
+    parsed_comment0 = gensub(/\s*\/\/!\s/, "", "g", $0);  # Clean up the comment
+    parsed_comment = gensub(/^#/, "####", "g", parsed_comment0);  # Clean up the comment
+    print parsed_comment;
+}
+
+# Detect entering a message and store its name
+/^\s*(message(\(.*\))?)\s+([a-zA-Z0-9_]+)/ {
     current_block = $2;  # Capture the name of the message or contract
     # print "Entering block: " current_block " on line " NR - prev_nr;
-    print "\n## "$1" ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    print "\n### Message ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
     if (last_comment != "") {
         print "\n"last_comment;
     }
-    print "\n**Fields**  ";
+    last_comment = "";  # Reset last comment after associating
+}
+
+# Detect entering a struct and store its name
+/^\s*(struct)\s+([a-zA-Z0-9_]+)/ {
+    current_block = $2;  # Capture the name of the message or contract
+    # print "Entering block: " current_block " on line " NR - prev_nr;
+    print "\n### Struct ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    if (last_comment != "") {
+        print "\n"last_comment;
+    }
+    last_comment = "";  # Reset last comment after associating
+}
+
+# Detect entering a contract and store its name
+/^\s*(contract)\s+([a-zA-Z0-9_]+)/ {
+    current_block = $2;  # Capture the name of the message or contract
+    # print "Entering block: " current_block " on line " NR - prev_nr;
+    print "\n## Contract ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    if (last_comment != "") {
+        print "\n"last_comment;
+    }
+    last_comment = "";  # Reset last comment after associating
+}
+
+# Detect entering a trait and store its name
+/^\s*(trait)\s+([a-zA-Z0-9_]+)/ {
+    current_block = $2;  # Capture the name of the message or contract
+    # print "Entering block: " current_block " on line " NR - prev_nr;
+    print "\n## Trait ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    if (last_comment != "") {
+        print "\n"last_comment;
+    }
     last_comment = "";  # Reset last comment after associating
 }
 
@@ -57,7 +108,7 @@ BEGIN {
     section_name = gensub(/(^.*\(|\).*$)/, "", "g", $0);  # Clean up the section name
     section_type = gensub(/^.*:\s*/, "", "g", section_name);  # Clean up the section type
     # print "Section start found on line " NR - prev_nr ": " $0;
-    print "\n## Receive [" section_type"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    print "\n### Receive [" section_type"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -66,9 +117,9 @@ BEGIN {
 
 # Check for fun, get fun, inline fun sections
 /^\s*(get\s|inline\s|extends\s|virtual\s)*(fun)\s+([a-zA-Z0-9_]+)\s*\(/ {
-    section_name = gensub(/(.*(fun)\s|\s*{)/, "", "g", $0);  # Clean up the section name
+    section_name = gensub(/(.*(fun)\s|\s*\{)/, "", "g", $0);  # Clean up the section name
     # print "Section start found on line " NR - prev_nr ": " $0;
-    print "\n## Function [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    print "\n### Function [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -78,8 +129,8 @@ BEGIN {
 # Check for init sections
 /^\s*(init)\s*\(/ {
     # print "Section start found on line " NR - prev_nr ": " $0;
-    section_name = gensub(/(^\s*|\s*{)/, "", "g", $0);  # Clean up the section name
-    print "\n## Initializer [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    section_name = gensub(/(^\s*|\s*\{)/, "", "g", $0);  # Clean up the section name
+    print "\n### Initializer [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -88,7 +139,12 @@ BEGIN {
 
 # Check for fields within message or contract blocks and link them
 /^\s*[a-zA-Z0-9_]+\s*:/ {
-    if (current_block != "" && in_sub_block == 0) {
+    # print "Current block: " current_block " In sub-block: " sub_block_depth " on line " NR - prev_nr ": " $0;
+    if (current_block != "" && sub_block_depth == 1) {
+        if (fields_section == 0) {
+            print "\n**Fields**  ";
+            fields_section = 1;  # Set fields section flag
+        }
         field_name = gensub(/(^\s*|:.*)/, "", "g", $0);  # Clean up the field name
         field_type = gensub(/(^.*[^A-Z]:\s?|;?\s*$|;.*$)/, "", "g", $0);  # Clean up the field type
         # print "Field documentation for " current_block " found on line " NR - prev_nr ": " $0;
@@ -106,31 +162,23 @@ BEGIN {
     accumulating_comments = 0;  # Reset comment accumulation
 }
 
+# Add sub-block depth
+/\{/ {
+    sub_block_depth += 1;
+}
+
+# Remove sub-block depth
+/\}/ {
+    sub_block_depth -= 1;
+}
+
 # Reset current block when exiting a block
 /^\}/ {
     if (current_block != "") {
         # print "Exiting block: " current_block " on line " NR - prev_nr;
         current_block = "";  # Reset current block when exiting
-        in_sub_block = 0;  # Reset sub-block flag
         last_comment = "";  # Reset last comment after exiting block
-    }
-}
-
-# Function to print markdown header
-function print_markdown_header(file) {
-    print "# Documentation for [" file"]("github_path"/blob/"branch last_file_pathname")";
-}
-
-# Process each file
-{
-    if (FILENAME != last_file) {
-        if (last_file != "") {
-            print "\n"; # Print a newline between files
-        }
-        last_file = FILENAME;
-        last_file_pathname = gensub(/^./, "", "g", FILENAME);
-        print_markdown_header(gensub(/^.\//, "", "g", FILENAME));
-        prev_nr = NR - 1;  # Store the line number of the last file
+        fields_section = 0;  # Reset fields section flag
     }
 }
 
@@ -138,5 +186,5 @@ END {
     if (last_file != "") {
         print "\n"; # Ensure ending newline for the last processed file
     }
-    print "\n*Documentation generated by [Tactdoc](https://github.com/microcosm-labs/tact-tools/tree/main/tactdoc) v0.1.0.*";
+    print "\n*Documentation generated by [Tactdoc](https://github.com/microcosm-labs/tact-tools/tree/main/tactdoc) v0.1.2.*";
 }
