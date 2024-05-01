@@ -2,7 +2,7 @@
 # Copyright (C) Microcosm Labs 2024
 # Tactdoc - Documentation generator for Tact source files inspired by rustdoc
 # Author: @0kenx
-# Version: 0.1.0
+# Version: 0.1.3
 # GitHub: https://github.com/microcosm-labs
 #
 # AWK script to process source files with refined field detection, linking, and multi-line documentation.
@@ -16,15 +16,14 @@ BEGIN {
     accumulating_comments = 0;  # Flag to indicate if we are currently accumulating comments
     sub_block_depth = 0; # Current depth of sub-block
     fields_section = 0;  # Flag to indicate if we are currently in a fields section
-    github_path = "https://github.com/microcosm-labs/tact-tools";
-    branch = "main";
+    rel_path = "..";  # Relative path of the document directory to the repository root
     prev_nr = 0;  # Store the line number of all previous files
 }
 
 
 # Function to print markdown header
 function print_markdown_header(file) {
-    print "# Documentation for [" file"]("github_path"/blob/"branch last_file_pathname")\n";
+    print "# Documentation for [" file"]("rel_path last_file_pathname")\n";
 }
 
 # Process each file
@@ -63,7 +62,7 @@ function print_markdown_header(file) {
 /^\s*(message(\(.*\))?)\s+([a-zA-Z0-9_]+)/ {
     current_block = $2;  # Capture the name of the message or contract
     # print "Entering block: " current_block " on line " NR - prev_nr;
-    print "\n### Message ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    print "\n### Message ["current_block"]("rel_path last_file_pathname"#L"NR - prev_nr")";
     if (last_comment != "") {
         print "\n"last_comment;
     }
@@ -74,7 +73,7 @@ function print_markdown_header(file) {
 /^\s*(struct)\s+([a-zA-Z0-9_]+)/ {
     current_block = $2;  # Capture the name of the message or contract
     # print "Entering block: " current_block " on line " NR - prev_nr;
-    print "\n### Struct ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    print "\n### Struct ["current_block"]("rel_path last_file_pathname"#L"NR - prev_nr")";
     if (last_comment != "") {
         print "\n"last_comment;
     }
@@ -85,7 +84,7 @@ function print_markdown_header(file) {
 /^\s*(contract)\s+([a-zA-Z0-9_]+)/ {
     current_block = $2;  # Capture the name of the message or contract
     # print "Entering block: " current_block " on line " NR - prev_nr;
-    print "\n## Contract ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    print "\n## Contract ["current_block"]("rel_path last_file_pathname"#L"NR - prev_nr")";
     if (last_comment != "") {
         print "\n"last_comment;
     }
@@ -96,7 +95,7 @@ function print_markdown_header(file) {
 /^\s*(trait)\s+([a-zA-Z0-9_]+)/ {
     current_block = $2;  # Capture the name of the message or contract
     # print "Entering block: " current_block " on line " NR - prev_nr;
-    print "\n## Trait ["current_block"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")";
+    print "\n## Trait ["current_block"]("rel_path last_file_pathname"#L"NR - prev_nr")";
     if (last_comment != "") {
         print "\n"last_comment;
     }
@@ -108,7 +107,7 @@ function print_markdown_header(file) {
     section_name = gensub(/(^.*\(|\).*$)/, "", "g", $0);  # Clean up the section name
     section_type = gensub(/^.*:\s*/, "", "g", section_name);  # Clean up the section type
     # print "Section start found on line " NR - prev_nr ": " $0;
-    print "\n### Receive [" section_type"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    print "\n### Receive [" section_type"]("rel_path last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -119,7 +118,7 @@ function print_markdown_header(file) {
 /^\s*(get\s|inline\s|extends\s|virtual\s)*(fun)\s+([a-zA-Z0-9_]+)\s*\(/ {
     section_name = gensub(/(.*(fun)\s|\s*\{)/, "", "g", $0);  # Clean up the section name
     # print "Section start found on line " NR - prev_nr ": " $0;
-    print "\n### Function [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    print "\n### Function [" section_name"]("rel_path last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -130,7 +129,7 @@ function print_markdown_header(file) {
 /^\s*(init)\s*\(/ {
     # print "Section start found on line " NR - prev_nr ": " $0;
     section_name = gensub(/(^\s*|\s*\{)/, "", "g", $0);  # Clean up the section name
-    print "\n### Initializer [" section_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr")\n";
+    print "\n### Initializer [" section_name"]("rel_path last_file_pathname"#L"NR - prev_nr")\n";
     if (last_comment != "") {
         print last_comment;
     }
@@ -148,7 +147,7 @@ function print_markdown_header(file) {
         field_name = gensub(/(^\s*|:.*)/, "", "g", $0);  # Clean up the field name
         field_type = gensub(/(^.*[^A-Z]:\s?|;?\s*$|;.*$)/, "", "g", $0);  # Clean up the field type
         # print "Field documentation for " current_block " found on line " NR - prev_nr ": " $0;
-        print "* ["field_name"]("github_path"/blob/"branch last_file_pathname"#L"NR - prev_nr"): " field_type"  ";
+        print "* ["field_name"]("rel_path last_file_pathname"#L"NR - prev_nr"): " field_type"  ";
         if (last_comment != "") {
             print last_comment;
         }
@@ -186,5 +185,5 @@ END {
     if (last_file != "") {
         print "\n"; # Ensure ending newline for the last processed file
     }
-    print "\n*Documentation generated by [Tactdoc](https://github.com/microcosm-labs/tact-tools/tree/main/tactdoc) v0.1.2.*";
+    print "\n*Documentation generated by [Tactdoc](https://github.com/microcosm-labs/tact-tools/tree/main/tactdoc) v0.1.3.*";
 }
