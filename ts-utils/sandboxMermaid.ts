@@ -63,7 +63,9 @@ export function generateMermaidDiagram(
     txResult: SendMessageResult,
     node_name_map: Record<string, string>,
     node_contract_map: Record<string, SandboxContract<any>>,
-    use_short_address: boolean = true,
+    use_short_address: boolean = false,
+    space_json_calldata: boolean = true,
+    format_for_screen: boolean = true,
 ) {
     const nodeSet = new Set<string>();
     const edges: string[] = [];
@@ -143,7 +145,7 @@ export function generateMermaidDiagram(
                     edges.push(
                         `${srcNode} ->> ${destNode}:[${opcode}${bounced}]<br/>${toCoinsString(
                             value.coins,
-                        )} TON<br/>${parseCell(body, abi)}`,
+                        )} TON<br/>${parseCell(body, abi, space_json_calldata)}`,
                     );
                 }
             }
@@ -158,7 +160,7 @@ sequenceDiagram
   ${edges.map((edge, index) => `${edge}`).join('\n  ')}
   `;
 
-    return graph;
+    return format_for_screen ? graph.replace(/<br\/>/g, '\n      ') : graph;
 }
 
 export type DecodedField = {
@@ -167,9 +169,9 @@ export type DecodedField = {
 };
 
 // Function to parse one cell
-export function parseCell(cell: Cell, abi: any) {
+export function parseCell(cell: Cell, abi: any, space_json_calldata: boolean) {
     if (abi == undefined || abi.fields == undefined || abi.fields.length == 0) {
-        return `Calldata`;
+        return `<calldata>`;
         // return `${cell.toBoc().toString('hex')}`;
     }
     let s: Slice = cell.beginParse();
@@ -221,5 +223,9 @@ export function parseCell(cell: Cell, abi: any) {
         {} as { [key: string]: string },
     );
     // return `Calldata`;
-    return `${JSON.stringify(resultObject)}`;
+    return space_json_calldata
+        ? `${JSON.stringify(resultObject, null, '<br/>')
+              .replace(/(\r\n|\n|\r)/gm, '')
+              .replace('{<br/>', '{')}`
+        : `${JSON.stringify(resultObject)}`;
 }
